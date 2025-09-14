@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<title>Генеративна візуалізація: довільні переноси розділів</title>
+<style>
+body { font-family: Arial, sans-serif; }
+/* Фіксована панель налаштувань зверху */
+#controls {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 280px;
+  padding: 10px;
+  background: #f9f9f9;
+  box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+  z-index: 1000;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+#charts {
+  margin-left: 300px;
+  padding: 10px;
+  margin-top: 10px;
+}
+label {
+  margin-right: 10px;
+  display: inline-flex;
+  align-items: center;
+}
+label input[type="number"],
+label input[type="range"],
+label input[type="color"] {
+  margin-left: 4px;
+}
+/* Декоративне оформлення для блоків книг та розділів */
+.book {
+  display: flex;
+  align-items: flex-start;
+}
+.book-name {
+  display: inline-block;
+  margin-right: 10px;
+  font-weight: bold;
+  /* Фіксована ширина для всіх назв книг для вирівнювання по лівому краю */
+  width: 180px;
+  flex-shrink: 0;
+  /* Закріпляємо стовпчик з назвами книг при горизонтальному скролі */
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: #f9f9f9;
+  padding-right: 5px;
+  /* Вирівнюємо текст по лівому краю всередині блоку назви книги */
+  text-align: left;
+}
+.chapters-container {
+  display: flex;
+  flex-direction: column;
+}
+.chapter-row {
+  display: flex;
+  flex-wrap: nowrap;
+}
+.chapter-segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+/* Тримаємо підказки (title) читабельними */
+.chapter-segment[title] {
+  cursor: help;
+}
+
+#settingsSection label {
+  display: block;
+  margin-bottom: 6px;
+  white-space: normal;
+}
+
+#booksSection label {
+  display: block;
+}
+
+/* Сітка для панелі налаштувань: два стовпці – ліворуч елементи керування, праворуч їх підписи */
+.controls-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 8px;
+  row-gap: 6px;
+  align-items: center;
+}
+</style>
+</head>
+<body>
+<div id="controls">
+  <div id="settingsSection" class="controls-grid">
+    <strong style="grid-column: span 2;">Налаштування</strong>
+    <!-- Шкала ширини -->
+    <input type="number" id="scaleInput" min="0.1" max="10" value="0.1" step="0.05">
+    <span>Шкала ширини</span>
+    <!-- Висота прямокутника -->
+    <input type="number" id="rectHeightInput" value="20" min="10" max="50">
+    <span>Висота прямокутника</span>
+    <!-- Розмір шрифту назви книги -->
+    <input type="number" id="titleFontSizeInput" value="16" min="8" max="32">
+    <span>Розмір шрифту назви книги</span>
+    <!-- Розмір шрифту номера розділу -->
+    <input type="number" id="chapterFontSizeInput" value="14" min="6" max="24">
+    <span>Розмір шрифту номера розділу</span>
+    <!-- Відступ між книгами -->
+    <input type="number" id="rowSpacingInput" value="20" min="0" max="50">
+    <span>Відступ між книгами</span>
+    <!-- Проміжок між розділами -->
+    <input type="number" id="gapInput" value="2" min="0" max="20">
+    <span>Проміжок між розділами</span>
+    <!-- Міжстрічковий інтервал між рядками розділів -->
+    <input type="number" id="lineGapInput" value="10" min="0" max="50">
+    <span>Міжстрічковий інтервал між рядками розділів</span>
+    <!-- Радіус кутів -->
+    <input type="number" id="borderRadiusInput" value="4" min="0" max="20">
+    <span>Радіус кутів</span>
+    <!-- Розділів на рядок (0 = автоматично) -->
+    <input type="number" id="chaptersPerLineInput" value="0" min="0" max="200">
+    <span>Розділів на рядок (0 = автоматично)</span>
+    <!-- Розбивати довгі розділи між рядками -->
+    <input type="checkbox" id="enableSplitInput">
+    <span>Розбивати довгі розділи між рядками</span>
+    <!-- Максимальна ширина рядка -->
+    <input type="number" id="maxRowWidthInput" value="0" min="0" max="10000" step="50">
+    <span>Максимальна ширина рядка (px, 0 = необмежено)</span>
+    <!-- Колір прямокутників -->
+    <input type="color" id="rectColorInput" value="#d9d9d9">
+    <span>Колір прямокутників</span>
+    <!-- Колір назви книги -->
+    <input type="color" id="titleColorInput" value="#000000">
+    <span>Колір назви книги</span>
+    <!-- Колір номера розділу -->
+    <input type="color" id="chapterColorInput" value="#000000">
+    <span>Колір номера розділу</span>
+    <!-- Показувати номер розділу -->
+    <input type="checkbox" id="showChapterInput" checked>
+    <span>Показувати номер розділу</span>
+    <!-- Показувати кількість слів (підказка) -->
+    <input type="checkbox" id="showWordsInput" checked>
+    <span>Показувати кількість слів (підказка)</span>
+    <!-- Вирівнювати номер розділу по центру -->
+    <input type="checkbox" id="alignChapterCenterInput">
+    <span>Вирівнювати номер розділу по центру</span>
+    <!-- Режим "Усі розділи" -->
+    <input type="checkbox" id="allChaptersModeInput">
+    <span>Режим "Усі розділи"</span>
+    <!-- Колір першого розділу -->
+    <input type="color" id="firstChapterColorInput" value="#ffaa00">
+    <span>Колір першого розділу (дефолт: жовтий)</span>
+    <!-- Колір фону -->
+    <input type="color" id="backgroundColorInput" value="#f9f9f9">
+    <span>Колір фону (загальний)</span>
+
+    <!-- Показувати середню довжину рядків -->
+    <input type="checkbox" id="showAvgLineInput">
+    <span>Показувати середню довжину рядків</span>
+    <!-- Колір середньої лінії -->
+    <input type="color" id="avgLineColorInput" value="#ff0000">
+    <span>Колір середньої лінії</span>
+    <!-- Кнопка експорту CSV -->
+    <button id="exportCsvBtn" style="margin-top: 10px; grid-column: span 2;">Експорт CSV</button>
+    <!-- Кнопка копіювання до буфера обміну -->
+    <button id="copyClipboardBtn" style="margin-top: 5px; grid-column: span 2;">Копіювати у буфер</button>
+  </div>
+  <div id="booksSection" style="margin-top: 20px;">
+    <strong>Книги</strong><br/>
+    <button id="selectAllBtn" style="margin-top: 10px;">Вибрати усі книги</button>
+    <button id="deselectAllBtn" style="margin-top: 5px;">Прибрати виділення усіх книг</button>
+    <div id="bookList"></div>
+  </div>
+</div>
+<div id="charts"></div>
+<script>
+// Поточний поділ на рядки (для експорту CSV). Кожен елемент масиву містить список розділів у відповідному рядку.
+let currentRows = [];
+// Дані про книги та розділи. Кожна ширина "width" = 3 * words, щоб забезпечити достатнє відношення.
+const booksData = [{"number": "01", "name": "Буття", "chapters": [{"chapter": 1, "words": 336, "width": 1008}, {"chapter": 2, "words": 258, "width": 774}, {"chapter": 3, "words": 270, "width": 810}, {"chapter": 4, "words": 269, "width": 807}, {"chapter": 5, "words": 315, "width": 945}, {"chapter": 6, "words": 233, "width": 699}, {"chapter": 7, "words": 247, "width": 741}, {"chapter": 8, "words": 231, "width": 693}, {"chapter": 9, "words": 245, "width": 735}, {"chapter": 10, "words": 219, "width": 657}, {"chapter": 11, "words": 323, "width": 969}, {"chapter": 12, "words": 198, "width": 594}, {"chapter": 13, "words": 174, "width": 522}, {"chapter": 14, "words": 266, "width": 798}, {"chapter": 15, "words": 179, "width": 537}, {"chapter": 16, "words": 171, "width": 513}, {"chapter": 17, "words": 271, "width": 813}, {"chapter": 18, "words": 330, "width": 990}, {"chapter": 19, "words": 417, "width": 1251}, {"chapter": 20, "words": 183, "width": 549}, {"chapter": 21, "words": 311, "width": 933}, {"chapter": 22, "words": 260, "width": 780}, {"chapter": 23, "words": 210, "width": 630}, {"chapter": 24, "words": 695, "width": 2085}, {"chapter": 25, "words": 320, "width": 960}, {"chapter": 26, "words": 345, "width": 1035}, {"chapter": 27, "words": 477, "width": 1431}, {"chapter": 28, "words": 227, "width": 681}, {"chapter": 29, "words": 340, "width": 1020}, {"chapter": 30, "words": 427, "width": 1281}, {"chapter": 31, "words": 546, "width": 1638}, {"chapter": 32, "words": 313, "width": 939}, {"chapter": 33, "words": 189, "width": 567}, {"chapter": 34, "words": 306, "width": 918}, {"chapter": 35, "words": 268, "width": 804}, {"chapter": 36, "words": 399, "width": 1197}, {"chapter": 37, "words": 356, "width": 1068}, {"chapter": 38, "words": 297, "width": 891}, {"chapter": 39, "words": 235, "width": 705}, {"chapter": 40, "words": 224, "width": 672}, {"chapter": 41, "words": 595, "width": 1785}, {"chapter": 42, "words": 351, "width": 1053}, {"chapter": 43, "words": 364, "width": 1092}, {"chapter": 44, "words": 314, "width": 942}, {"chapter": 45, "words": 276, "width": 828}, {"chapter": 46, "words": 322, "width": 966}, {"chapter": 47, "words": 379, "width": 1137}, {"chapter": 48, "words": 252, "width": 756}, {"chapter": 49, "words": 305, "width": 915}, {"chapter": 50, "words": 276, "width": 828}]}, {"number": "02", "name": "Вихід", "chapters": [{"chapter": 1, "words": 185, "width": 555}, {"chapter": 2, "words": 259, "width": 777}, {"chapter": 3, "words": 281, "width": 843}, {"chapter": 4, "words": 320, "width": 960}, {"chapter": 5, "words": 241, "width": 723}, {"chapter": 6, "words": 300, "width": 900}, {"chapter": 7, "words": 275, "width": 825}, {"chapter": 8, "words": 355, "width": 1065}, {"chapter": 9, "words": 367, "width": 1101}, {"chapter": 10, "words": 333, "width": 999}, {"chapter": 11, "words": 123, "width": 369}, {"chapter": 12, "words": 545, "width": 1635}, {"chapter": 13, "words": 242, "width": 726}, {"chapter": 14, "words": 371, "width": 1113}, {"chapter": 15, "words": 267, "width": 801}, {"chapter": 16, "words": 392, "width": 1176}, {"chapter": 17, "words": 188, "width": 564}, {"chapter": 18, "words": 288, "width": 864}, {"chapter": 19, "words": 276, "width": 828}, {"chapter": 20, "words": 203, "width": 609}, {"chapter": 21, "words": 321, "width": 963}, {"chapter": 22, "words": 262, "width": 786}, {"chapter": 23, "words": 294, "width": 882}, {"chapter": 24, "words": 195, "width": 585}, {"chapter": 25, "words": 351, "width": 1053}, {"chapter": 26, "words": 415, "width": 1245}, {"chapter": 27, "words": 229, "width": 687}, {"chapter": 28, "words": 474, "width": 1422}, {"chapter": 29, "words": 480, "width": 1440}, {"chapter": 30, "words": 350, "width": 1050}, {"chapter": 31, "words": 165, "width": 495}, {"chapter": 32, "words": 400, "width": 1200}, {"chapter": 33, "words": 248, "width": 744}, {"chapter": 34, "words": 402, "width": 1206}, {"chapter": 35, "words": 335, "width": 1005}, {"chapter": 36, "words": 422, "width": 1266}, {"chapter": 37, "words": 302, "width": 906}, {"chapter": 38, "words": 354, "width": 1062}, {"chapter": 39, "words": 443, "width": 1329}, {"chapter": 40, "words": 307, "width": 921}]}, {"number": "03", "name": "Левит", "chapters": [{"chapter": 1, "words": 189, "width": 567}, {"chapter": 2, "words": 167, "width": 501}, {"chapter": 3, "words": 181, "width": 543}, {"chapter": 4, "words": 419, "width": 1257}, {"chapter": 5, "words": 239, "width": 717}, {"chapter": 6, "words": 325, "width": 975}, {"chapter": 7, "words": 367, "width": 1101}, {"chapter": 8, "words": 409, "width": 1227}, {"chapter": 9, "words": 259, "width": 777}, {"chapter": 10, "words": 244, "width": 732}, {"chapter": 11, "words": 361, "width": 1083}, {"chapter": 12, "words": 105, "width": 315}, {"chapter": 13, "words": 650, "width": 1950}, {"chapter": 14, "words": 660, "width": 1980}, {"chapter": 15, "words": 345, "width": 1035}, {"chapter": 16, "words": 415, "width": 1245}, {"chapter": 17, "words": 195, "width": 585}, {"chapter": 18, "words": 244, "width": 732}, {"chapter": 19, "words": 313, "width": 939}, {"chapter": 20, "words": 301, "width": 903}, {"chapter": 21, "words": 192, "width": 576}, {"chapter": 22, "words": 297, "width": 891}, {"chapter": 23, "words": 486, "width": 1458}, {"chapter": 24, "words": 216, "width": 648}, {"chapter": 25, "words": 503, "width": 1509}, {"chapter": 26, "words": 426, "width": 1278}, {"chapter": 27, "words": 323, "width": 969}]}, {"number": "04", "name": "Числа", "chapters": [{"chapter": 1, "words": 525, "width": 1575}, {"chapter": 2, "words": 336, "width": 1008}, {"chapter": 3, "words": 500, "width": 1500}, {"chapter": 4, "words": 523, "width": 1569}, {"chapter": 5, "words": 341, "width": 1023}, {"chapter": 6, "words": 293, "width": 879}, {"chapter": 7, "words": 1006, "width": 3018}, {"chapter": 8, "words": 274, "width": 822}, {"chapter": 9, "words": 269, "width": 807}, {"chapter": 10, "words": 320, "width": 960}, {"chapter": 11, "words": 401, "width": 1203}, {"chapter": 12, "words": 147, "width": 441}, {"chapter": 13, "words": 304, "width": 912}, {"chapter": 14, "words": 436, "width": 1308}, {"chapter": 15, "words": 400, "width": 1200}, {"chapter": 16, "words": 508, "width": 1524}, {"chapter": 17, "words": 134, "width": 402}, {"chapter": 18, "words": 354, "width": 1062}, {"chapter": 19, "words": 267, "width": 801}, {"chapter": 20, "words": 313, "width": 939}, {"chapter": 21, "words": 367, "width": 1101}, {"chapter": 22, "words": 459, "width": 1377}, {"chapter": 23, "words": 292, "width": 876}, {"chapter": 24, "words": 251, "width": 753}, {"chapter": 25, "words": 180, "width": 540}, {"chapter": 26, "words": 600, "width": 1800}, {"chapter": 27, "words": 224, "width": 672}, {"chapter": 28, "words": 342, "width": 1026}, {"chapter": 29, "words": 438, "width": 1314}, {"chapter": 30, "words": 168, "width": 504}, {"chapter": 31, "words": 538, "width": 1614}, {"chapter": 32, "words": 419, "width": 1257}, {"chapter": 33, "words": 422, "width": 1266}, {"chapter": 34, "words": 253, "width": 759}, {"chapter": 35, "words": 363, "width": 1089}, {"chapter": 36, "words": 174, "width": 522}]}, {"number": "05", "name": "Второзаконня", "chapters": [{"chapter": 1, "words": 469, "width": 1407}, {"chapter": 2, "words": 394, "width": 1182}, {"chapter": 3, "words": 322, "width": 966}, {"chapter": 4, "words": 547, "width": 1641}, {"chapter": 5, "words": 318, "width": 954}, {"chapter": 6, "words": 227, "width": 681}, {"chapter": 7, "words": 283, "width": 849}, {"chapter": 8, "words": 227, "width": 681}, {"chapter": 9, "words": 358, "width": 1074}, {"chapter": 10, "words": 228, "width": 684}, {"chapter": 11, "words": 334, "width": 1002}, {"chapter": 12, "words": 365, "width": 1095}, {"chapter": 13, "words": 220, "width": 660}, {"chapter": 14, "words": 238, "width": 714}, {"chapter": 15, "words": 244, "width": 732}, {"chapter": 16, "words": 265, "width": 795}, {"chapter": 17, "words": 234, "width": 702}, {"chapter": 18, "words": 199, "width": 597}, {"chapter": 19, "words": 250, "width": 750}, {"chapter": 20, "words": 211, "width": 633}, {"chapter": 21, "words": 249, "width": 747}, {"chapter": 22, "words": 298, "width": 894}, {"chapter": 23, "words": 189, "width": 567}, {"chapter": 24, "words": 243, "width": 729}, {"chapter": 25, "words": 264, "width": 792}, {"chapter": 26, "words": 179, "width": 537}, {"chapter": 27, "words": 334, "width": 1002}, {"chapter": 28, "words": 434, "width": 1302}, {"chapter": 29, "words": 172, "width": 516}, {"chapter": 30, "words": 189, "width": 567}, {"chapter": 31, "words": 299, "width": 897}, {"chapter": 32, "words": 588, "width": 1764}, {"chapter": 33, "words": 284, "width": 852}, {"chapter": 34, "words": 175, "width": 525}]}, {"number": "06", "name": "Ісуса Навина", "chapters": [{"chapter": 1, "words": 290, "width": 870}, {"chapter": 2, "words": 399, "width": 1197}, {"chapter": 3, "words": 252, "width": 756}, {"chapter": 4, "words": 358, "width": 1074}, {"chapter": 5, "words": 247, "width": 741}, {"chapter": 6, "words": 403, "width": 1209}, {"chapter": 7, "words": 455, "width": 1365}, {"chapter": 8, "words": 522, "width": 1566}, {"chapter": 9, "words": 347, "width": 1041}, {"chapter": 10, "words": 433, "width": 1299}, {"chapter": 11, "words": 326, "width": 978}, {"chapter": 12, "words": 212, "width": 636}, {"chapter": 13, "words": 525, "width": 1575}, {"chapter": 14, "words": 195, "width": 585}, {"chapter": 15, "words": 661, "width": 1983}, {"chapter": 16, "words": 188, "width": 564}, {"chapter": 17, "words": 282, "width": 846}, {"chapter": 18, "words": 347, "width": 1041}, {"chapter": 19, "words": 562, "width": 1686}, {"chapter": 20, "words": 171, "width": 513}, {"chapter": 21, "words": 386, "width": 1158}, {"chapter": 22, "words": 421, "width": 1263}, {"chapter": 23, "words": 221, "width": 663}, {"chapter": 24, "words": 372, "width": 1116}]}, {"number": "07", "name": "Суддів", "chapters": [{"chapter": 1, "words": 495, "width": 1485}, {"chapter": 2, "words": 254, "width": 762}, {"chapter": 3, "words": 464, "width": 1392}, {"chapter": 4, "words": 210, "width": 630}, {"chapter": 5, "words": 418, "width": 1254}, {"chapter": 6, "words": 434, "width": 1302}, {"chapter": 7, "words": 484, "width": 1452}, {"chapter": 8, "words": 499, "width": 1497}, {"chapter": 9, "words": 567, "width": 1701}, {"chapter": 10, "words": 199, "width": 597}, {"chapter": 11, "words": 496, "width": 1488}, {"chapter": 12, "words": 225, "width": 675}, {"chapter": 13, "words": 314, "width": 942}, {"chapter": 14, "words": 176, "width": 528}, {"chapter": 15, "words": 198, "width": 594}, {"chapter": 16, "words": 354, "width": 1062}, {"chapter": 17, "words": 160, "width": 480}, {"chapter": 18, "words": 364, "width": 1092}, {"chapter": 19, "words": 454, "width": 1362}, {"chapter": 20, "words": 587, "width": 1761}, {"chapter": 21, "words": 204, "width": 612}]}, {"number": "08", "name": "Руфі", "chapters": [{"chapter": 1, "words": 217, "width": 651}, {"chapter": 2, "words": 294, "width": 882}, {"chapter": 3, "words": 204, "width": 612}, {"chapter": 4, "words": 225, "width": 675}]}, {"number": "09", "name": "1-a Царств", "chapters": [{"chapter": 1, "words": 480, "width": 1440}, {"chapter": 2, "words": 387, "width": 1161}, {"chapter": 3, "words": 469, "width": 1407}, {"chapter": 4, "words": 529, "width": 1587}, {"chapter": 5, "words": 181, "width": 543}, {"chapter": 6, "words": 217, "width": 651}, {"chapter": 7, "words": 188, "width": 564}, {"chapter": 8, "words": 498, "width": 1494}, {"chapter": 9, "words": 517, "width": 1551}, {"chapter": 10, "words": 344, "width": 1032}, {"chapter": 11, "words": 309, "width": 927}, {"chapter": 12, "words": 346, "width": 1038}, {"chapter": 13, "words": 263, "width": 789}, {"chapter": 14, "words": 513, "width": 1539}, {"chapter": 15, "words": 490, "width": 1470}, {"chapter": 16, "words": 286, "width": 858}, {"chapter": 17, "words": 612, "width": 1836}, {"chapter": 18, "words": 556, "width": 1668}, {"chapter": 19, "words": 377, "width": 1131}, {"chapter": 20, "words": 423, "width": 1269}, {"chapter": 21, "words": 255, "width": 765}, {"chapter": 22, "words": 240, "width": 720}, {"chapter": 23, "words": 334, "width": 1002}, {"chapter": 24, "words": 230, "width": 690}, {"chapter": 25, "words": 441, "width": 1323}, {"chapter": 26, "words": 372, "width": 1116}, {"chapter": 27, "words": 190, "width": 570}, {"chapter": 28, "words": 473, "width": 1419}, {"chapter": 29, "words": 166, "width": 498}, {"chapter": 30, "words": 266, "width": 798}, {"chapter": 31, "words": 240, "width": 720}]}, {"number": "10", "name": "2-a Царств", "chapters": [{"chapter": 1, "words": 263, "width": 789}, {"chapter": 2, "words": 280, "width": 840}, {"chapter": 3, "words": 392, "width": 1176}, {"chapter": 4, "words": 151, "width": 453}, {"chapter": 5, "words": 256, "width": 768}, {"chapter": 6, "words": 277, "width": 831}, {"chapter": 7, "words": 330, "width": 990}, {"chapter": 8, "words": 154, "width": 462}, {"chapter": 9, "words": 238, "width": 714}, {"chapter": 10, "words": 347, "width": 1041}, {"chapter": 11, "words": 300, "width": 900}, {"chapter": 12, "words": 351, "width": 1053}, {"chapter": 13, "words": 421, "width": 1263}, {"chapter": 14, "words": 402, "width": 1206}, {"chapter": 15, "words": 406, "width": 1218}, {"chapter": 16, "words": 343, "width": 1029}, {"chapter": 17, "words": 515, "width": 1545}, {"chapter": 18, "words": 353, "width": 1059}, {"chapter": 19, "words": 461, "width": 1383}, {"chapter": 20, "words": 269, "width": 807}, {"chapter": 21, "words": 282, "width": 846}, {"chapter": 22, "words": 515, "width": 1545}, {"chapter": 23, "words": 352, "width": 1056}, {"chapter": 24, "words": 330, "width": 990}]}, {"number": "11", "name": "3-я Царств", "chapters": [{"chapter": 1, "words": 383, "width": 1149}, {"chapter": 2, "words": 400, "width": 1200}, {"chapter": 3, "words": 286, "width": 858}, {"chapter": 4, "words": 343, "width": 1029}, {"chapter": 5, "words": 154, "width": 462}, {"chapter": 6, "words": 431, "width": 1293}, {"chapter": 7, "words": 507, "width": 1521}, {"chapter": 8, "words": 687, "width": 2061}, {"chapter": 9, "words": 244, "width": 732}, {"chapter": 10, "words": 287, "width": 861}, {"chapter": 11, "words": 410, "width": 1230}, {"chapter": 12, "words": 333, "width": 999}, {"chapter": 13, "words": 320, "width": 960}, {"chapter": 14, "words": 328, "width": 984}, {"chapter": 15, "words": 331, "width": 993}, {"chapter": 16, "words": 388, "width": 1164}, {"chapter": 17, "words": 271, "width": 813}, {"chapter": 18, "words": 547, "width": 1641}, {"chapter": 19, "words": 271, "width": 813}, {"chapter": 20, "words": 438, "width": 1314}, {"chapter": 21, "words": 213, "width": 639}, {"chapter": 22, "words": 351, "width": 1053}]}, {"number": "12", "name": "4-a Царств", "chapters": [{"chapter": 1, "words": 298, "width": 894}, {"chapter": 2, "words": 325, "width": 975}, {"chapter": 3, "words": 315, "width": 945}, {"chapter": 4, "words": 394, "width": 1182}, {"chapter": 5, "words": 282, "width": 846}, {"chapter": 6, "words": 403, "width": 1209}, {"chapter": 7, "words": 321, "width": 963}, {"chapter": 8, "words": 272, "width": 816}, {"chapter": 9, "words": 496, "width": 1488}, {"chapter": 10, "words": 347, "width": 1041}, {"chapter": 11, "words": 211, "width": 633}, {"chapter": 12, "words": 216, "width": 648}, {"chapter": 13, "words": 245, "width": 735}, {"chapter": 14, "words": 371, "width": 1113}, {"chapter": 15, "words": 299, "width": 897}, {"chapter": 16, "words": 244, "width": 732}, {"chapter": 17, "words": 369, "width": 1107}, {"chapter": 18, "words": 330, "width": 990}, {"chapter": 19, "words": 349, "width": 1047}, {"chapter": 20, "words": 315, "width": 945}, {"chapter": 21, "words": 370, "width": 1110}, {"chapter": 22, "words": 205, "width": 615}, {"chapter": 23, "words": 488, "width": 1464}, {"chapter": 24, "words": 354, "width": 1062}, {"chapter": 25, "words": 331, "width": 993}]}, {"number": "13", "name": "1-a Паралипоменон", "chapters": [{"chapter": 1, "words": 546, "width": 1638}, {"chapter": 2, "words": 704, "width": 2112}, {"chapter": 3, "words": 353, "width": 1059}, {"chapter": 4, "words": 650, "width": 1950}, {"chapter": 5, "words": 459, "width": 1377}, {"chapter": 6, "words": 911, "width": 2733}, {"chapter": 7, "words": 492, "width": 1476}, {"chapter": 8, "words": 610, "width": 1830}, {"chapter": 9, "words": 467, "width": 1401}, {"chapter": 10, "words": 153, "width": 459}, {"chapter": 11, "words": 495, "width": 1485}, {"chapter": 12, "words": 461, "width": 1383}, {"chapter": 13, "words": 299, "width": 897}, {"chapter": 14, "words": 236, "width": 708}, {"chapter": 15, "words": 369, "width": 1107}, {"chapter": 16, "words": 441, "width": 1323}, {"chapter": 17, "words": 302, "width": 906}, {"chapter": 18, "words": 264, "width": 792}, {"chapter": 19, "words": 323, "width": 969}, {"chapter": 20, "words": 292, "width": 876}, {"chapter": 21, "words": 304, "width": 912}, {"chapter": 22, "words": 310, "width": 930}, {"chapter": 23, "words": 397, "width": 1191}, {"chapter": 24, "words": 330, "width": 990}, {"chapter": 25, "words": 365, "width": 1095}, {"chapter": 26, "words": 351, "width": 1053}, {"chapter": 27, "words": 305, "width": 915}, {"chapter": 28, "words": 328, "width": 984}, {"chapter": 29, "words": 558, "width": 1674}]}, {"number": "14", "name": "2-a Паралипоменон", "chapters": [{"chapter": 1, "words": 369, "width": 1107}, {"chapter": 2, "words": 368, "width": 1104}, {"chapter": 3, "words": 349, "width": 1047}, {"chapter": 4, "words": 406, "width": 1218}, {"chapter": 5, "words": 248, "width": 744}, {"chapter": 6, "words": 510, "width": 1530}, {"chapter": 7, "words": 328, "width": 984}, {"chapter": 8, "words": 245, "width": 735}, {"chapter": 9, "words": 333, "width": 999}, {"chapter": 10, "words": 238, "width": 714}, {"chapter": 11, "words": 211, "width": 633}, {"chapter": 12, "words": 180, "width": 540}, {"chapter": 13, "words": 380, "width": 1140}, {"chapter": 14, "words": 384, "width": 1152}, {"chapter": 15, "words": 148, "width": 444}, {"chapter": 16, "words": 245, "width": 735}, {"chapter": 17, "words": 308, "width": 924}, {"chapter": 18, "words": 529, "width": 1587}, {"chapter": 19, "words": 224, "width": 672}, {"chapter": 20, "words": 396, "width": 1188}, {"chapter": 21, "words": 265, "width": 795}, {"chapter": 22, "words": 242, "width": 726}, {"chapter": 23, "words": 341, "width": 1023}, {"chapter": 24, "words": 454, "width": 1362}, {"chapter": 25, "words": 432, "width": 1296}, {"chapter": 26, "words": 492, "width": 1476}, {"chapter": 27, "words": 139, "width": 417}, {"chapter": 28, "words": 294, "width": 882}, {"chapter": 29, "words": 475, "width": 1425}, {"chapter": 30, "words": 273, "width": 819}, {"chapter": 31, "words": 334, "width": 1002}, {"chapter": 32, "words": 373, "width": 1119}, {"chapter": 33, "words": 478, "width": 1434}, {"chapter": 34, "words": 414, "width": 1242}, {"chapter": 35, "words": 395, "width": 1185}, {"chapter": 36, "words": 189, "width": 567}]}, {"number": "15", "name": "Ездри", "chapters": [{"chapter": 1, "words": 240, "width": 720}, {"chapter": 2, "words": 448, "width": 1344}, {"chapter": 3, "words": 262, "width": 786}, {"chapter": 4, "words": 430, "width": 1290}, {"chapter": 5, "words": 271, "width": 813}, {"chapter": 6, "words": 379, "width": 1137}, {"chapter": 7, "words": 477, "width": 1431}, {"chapter": 8, "words": 506, "width": 1518}, {"chapter": 9, "words": 392, "width": 1176}, {"chapter": 10, "words": 463, "width": 1389}]}, {"number": "16", "name": "Неємії", "chapters": [{"chapter": 1, "words": 223, "width": 669}, {"chapter": 2, "words": 411, "width": 1233}, {"chapter": 3, "words": 538, "width": 1614}, {"chapter": 4, "words": 344, "width": 1032}, {"chapter": 5, "words": 260, "width": 780}, {"chapter": 6, "words": 270, "width": 810}, {"chapter": 7, "words": 773, "width": 2319}, {"chapter": 8, "words": 606, "width": 1818}, {"chapter": 9, "words": 697, "width": 2091}, {"chapter": 10, "words": 263, "width": 789}, {"chapter": 11, "words": 284, "width": 852}, {"chapter": 12, "words": 405, "width": 1215}, {"chapter": 13, "words": 319, "width": 957}]}, {"number": "17", "name": "Есфирі", "chapters": [{"chapter": 1, "words": 326, "width": 978}, {"chapter": 2, "words": 312, "width": 936}, {"chapter": 3, "words": 167, "width": 501}, {"chapter": 4, "words": 174, "width": 522}, {"chapter": 5, "words": 173, "width": 519}, {"chapter": 6, "words": 168, "width": 504}, {"chapter": 7, "words": 134, "width": 402}, {"chapter": 8, "words": 335, "width": 1005}, {"chapter": 9, "words": 574, "width": 1722}, {"chapter": 10, "words": 59, "width": 177}]}, {"number": "18", "name": "Іова", "chapters": [{"chapter": 1, "words": 434, "width": 1302}, {"chapter": 2, "words": 401, "width": 1203}, {"chapter": 3, "words": 423, "width": 1269}, {"chapter": 4, "words": 259, "width": 777}, {"chapter": 5, "words": 275, "width": 825}, {"chapter": 6, "words": 435, "width": 1305}, {"chapter": 7, "words": 201, "width": 603}, {"chapter": 8, "words": 150, "width": 450}, {"chapter": 9, "words": 203, "width": 609}, {"chapter": 10, "words": 184, "width": 552}, {"chapter": 11, "words": 143, "width": 429}, {"chapter": 12, "words": 257, "width": 771}, {"chapter": 13, "words": 248, "width": 744}, {"chapter": 14, "words": 235, "width": 705}, {"chapter": 15, "words": 315, "width": 945}, {"chapter": 16, "words": 174, "width": 522}, {"chapter": 17, "words": 110, "width": 330}, {"chapter": 18, "words": 201, "width": 603}, {"chapter": 19, "words": 303, "width": 909}, {"chapter": 20, "words": 218, "width": 654}, {"chapter": 21, "words": 235, "width": 705}, {"chapter": 22, "words": 234, "width": 702}, {"chapter": 23, "words": 99, "width": 297}, {"chapter": 24, "words": 139, "width": 417}, {"chapter": 25, "words": 66, "width": 198}, {"chapter": 26, "words": 103, "width": 309}, {"chapter": 27, "words": 180, "width": 540}, {"chapter": 28, "words": 210, "width": 630}, {"chapter": 29, "words": 233, "width": 699}, {"chapter": 30, "words": 193, "width": 579}, {"chapter": 31, "words": 232, "width": 696}, {"chapter": 32, "words": 227, "width": 681}, {"chapter": 33, "words": 266, "width": 798}, {"chapter": 34, "words": 373, "width": 1119}, {"chapter": 35, "words": 232, "width": 696}, {"chapter": 36, "words": 358, "width": 1074}, {"chapter": 37, "words": 226, "width": 678}, {"chapter": 38, "words": 338, "width": 1014}, {"chapter": 39, "words": 289, "width": 867}, {"chapter": 40, "words": 285, "width": 855}, {"chapter": 41, "words": 350, "width": 1050}, {"chapter": 42, "words": 245, "width": 735}]}, {"number": "19", "name": "Псалми", "chapters": [{"chapter": 1, "words": 124, "width": 372}, {"chapter": 2, "words": 146, "width": 438}, {"chapter": 3, "words": 173, "width": 519}, {"chapter": 4, "words": 118, "width": 354}, {"chapter": 5, "words": 134, "width": 402}, {"chapter": 6, "words": 112, "width": 336}, {"chapter": 7, "words": 303, "width": 909}, {"chapter": 8, "words": 152, "width": 456}, {"chapter": 9, "words": 326, "width": 978}, {"chapter": 10, "words": 212, "width": 636}, {"chapter": 11, "words": 77, "width": 231}, {"chapter": 12, "words": 76, "width": 228}, {"chapter": 13, "words": 72, "width": 216}, {"chapter": 14, "words": 95, "width": 285}, {"chapter": 15, "words": 87, "width": 261}, {"chapter": 16, "words": 178, "width": 534}, {"chapter": 17, "words": 300, "width": 900}, {"chapter": 18, "words": 435, "width": 1305}, {"chapter": 19, "words": 183, "width": 549}, {"chapter": 20, "words": 96, "width": 288}, {"chapter": 21, "words": 190, "width": 570}, {"chapter": 22, "words": 459, "width": 1377}, {"chapter": 23, "words": 57, "width": 171}, {"chapter": 24, "words": 126, "width": 378}, {"chapter": 25, "words": 266, "width": 798}, {"chapter": 26, "words": 148, "width": 444}, {"chapter": 27, "words": 225, "width": 675}, {"chapter": 28, "words": 131, "width": 393}, {"chapter": 29, "words": 103, "width": 309}, {"chapter": 30, "words": 120, "width": 360}, {"chapter": 31, "words": 329, "width": 987}, {"chapter": 32, "words": 190, "width": 570}, {"chapter": 33, "words": 229, "width": 687}, {"chapter": 34, "words": 227, "width": 681}, {"chapter": 35, "words": 365, "width": 1095}, {"chapter": 36, "words": 238, "width": 714}, {"chapter": 37, "words": 425, "width": 1275}, {"chapter": 38, "words": 289, "width": 867}, {"chapter": 39, "words": 203, "width": 609}, {"chapter": 40, "words": 271, "width": 813}, {"chapter": 41, "words": 192, "width": 576}, {"chapter": 42, "words": 163, "width": 489}, {"chapter": 43, "words": 63, "width": 189}, {"chapter": 44, "words": 316, "width": 948}, {"chapter": 45, "words": 299, "width": 897}, {"chapter": 46, "words": 166, "width": 498}, {"chapter": 47, "words": 90, "width": 270}, {"chapter": 48, "words": 197, "width": 591}, {"chapter": 49, "words": 283, "width": 849}, {"chapter": 50, "words": 189, "width": 567}, {"chapter": 51, "words": 345, "width": 1035}, {"chapter": 52, "words": 118, "width": 354}, {"chapter": 53, "words": 93, "width": 279}, {"chapter": 54, "words": 117, "width": 351}, {"chapter": 55, "words": 354, "width": 1062}, {"chapter": 56, "words": 153, "width": 459}, {"chapter": 57, "words": 234, "width": 702}, {"chapter": 58, "words": 181, "width": 543}, {"chapter": 59, "words": 257, "width": 771}, {"chapter": 60, "words": 224, "width": 672}, {"chapter": 61, "words": 120, "width": 360}, {"chapter": 62, "words": 135, "width": 405}, {"chapter": 63, "words": 168, "width": 504}, {"chapter": 64, "words": 182, "width": 546}, {"chapter": 65, "words": 185, "width": 555}, {"chapter": 66, "words": 327, "width": 981}, {"chapter": 67, "words": 23, "width": 69}, {"chapter": 68, "words": 456, "width": 1368}, {"chapter": 69, "words": 375, "width": 1125}, {"chapter": 70, "words": 176, "width": 528}, {"chapter": 71, "words": 344, "width": 1032}, {"chapter": 72, "words": 403, "width": 1209}, {"chapter": 73, "words": 287, "width": 861}, {"chapter": 74, "words": 267, "width": 801}, {"chapter": 75, "words": 174, "width": 522}, {"chapter": 76, "words": 121, "width": 363}, {"chapter": 77, "words": 308, "width": 924}, {"chapter": 78, "words": 721, "width": 2163}, {"chapter": 79, "words": 197, "width": 591}, {"chapter": 80, "words": 209, "width": 627}, {"chapter": 81, "words": 174, "width": 522}, {"chapter": 82, "words": 91, "width": 273}, {"chapter": 83, "words": 178, "width": 534}, {"chapter": 84, "words": 134, "width": 402}, {"chapter": 85, "words": 132, "width": 396}, {"chapter": 86, "words": 115, "width": 345}, {"chapter": 87, "words": 85, "width": 255}, {"chapter": 88, "words": 393, "width": 1179}, {"chapter": 89, "words": 601, "width": 1803}, {"chapter": 90, "words": 113, "width": 339}, {"chapter": 91, "words": 123, "width": 369}, {"chapter": 92, "words": 158, "width": 474}, {"chapter": 93, "words": 70, "width": 210}, {"chapter": 94, "words": 328, "width": 984}, {"chapter": 95, "words": 108, "width": 324}, {"chapter": 96, "words": 114, "width": 342}, {"chapter": 97, "words": 105, "width": 315}, {"chapter": 98, "words": 104, "width": 312}, {"chapter": 99, "words": 84, "width": 252}, {"chapter": 100, "words": 43, "width": 129}, {"chapter": 101, "words": 84, "width": 252}, {"chapter": 102, "words": 394, "width": 1182}, {"chapter": 103, "words": 276, "width": 828}, {"chapter": 104, "words": 478, "width": 1434}, {"chapter": 105, "words": 402, "width": 1206}, {"chapter": 106, "words": 502, "width": 1506}, {"chapter": 107, "words": 413, "width": 1239}, {"chapter": 108, "words": 109, "width": 327}, {"chapter": 109, "words": 402, "width": 1206}, {"chapter": 110, "words": 100, "width": 300}, {"chapter": 111, "words": 174, "width": 522}, {"chapter": 112, "words": 151, "width": 453}, {"chapter": 113, "words": 113, "width": 339}, {"chapter": 114, "words": 79, "width": 237}, {"chapter": 115, "words": 358, "width": 1074}, {"chapter": 116, "words": 141, "width": 423}, {"chapter": 117, "words": 39, "width": 117}, {"chapter": 118, "words": 525, "width": 1575}, {"chapter": 119, "words": 1769, "width": 5307}, {"chapter": 120, "words": 78, "width": 234}, {"chapter": 121, "words": 67, "width": 201}, {"chapter": 122, "words": 89, "width": 267}, {"chapter": 123, "words": 75, "width": 225}, {"chapter": 124, "words": 77, "width": 231}, {"chapter": 125, "words": 79, "width": 237}, {"chapter": 126, "words": 71, "width": 213}, {"chapter": 127, "words": 53, "width": 159}, {"chapter": 128, "words": 71, "width": 213}, {"chapter": 129, "words": 83, "width": 249}, {"chapter": 130, "words": 108, "width": 324}, {"chapter": 131, "words": 59, "width": 177}, {"chapter": 132, "words": 225, "width": 675}, {"chapter": 133, "words": 57, "width": 171}, {"chapter": 134, "words": 57, "width": 171}, {"chapter": 135, "words": 297, "width": 891}, {"chapter": 136, "words": 350, "width": 1050}, {"chapter": 137, "words": 166, "width": 498}, {"chapter": 138, "words": 149, "width": 447}, {"chapter": 139, "words": 348, "width": 1044}, {"chapter": 140, "words": 235, "width": 705}, {"chapter": 141, "words": 139, "width": 417}, {"chapter": 142, "words": 116, "width": 348}, {"chapter": 143, "words": 283, "width": 849}, {"chapter": 144, "words": 334, "width": 1002}, {"chapter": 145, "words": 325, "width": 975}, {"chapter": 146, "words": 151, "width": 453}, {"chapter": 147, "words": 191, "width": 573}, {"chapter": 148, "words": 186, "width": 558}, {"chapter": 149, "words": 122, "width": 366}, {"chapter": 150, "words": 115, "width": 345}]}, {"number": "20", "name": "Притчі", "chapters": [{"chapter": 1, "words": 450, "width": 1350}, {"chapter": 2, "words": 234, "width": 702}, {"chapter": 3, "words": 434, "width": 1302}, {"chapter": 4, "words": 411, "width": 1233}, {"chapter": 5, "words": 266, "width": 798}, {"chapter": 6, "words": 529, "width": 1587}, {"chapter": 7, "words": 472, "width": 1416}, {"chapter": 8, "words": 636, "width": 1908}, {"chapter": 9, "words": 188, "width": 564}, {"chapter": 10, "words": 506, "width": 1518}, {"chapter": 11, "words": 495, "width": 1485}, {"chapter": 12, "words": 504, "width": 1512}, {"chapter": 13, "words": 348, "width": 1044}, {"chapter": 14, "words": 484, "width": 1452}, {"chapter": 15, "words": 474, "width": 1422}, {"chapter": 16, "words": 540, "width": 1620}, {"chapter": 17, "words": 367, "width": 1101}, {"chapter": 18, "words": 418, "width": 1254}, {"chapter": 19, "words": 399, "width": 1197}, {"chapter": 20, "words": 406, "width": 1218}, {"chapter": 21, "words": 399, "width": 1197}, {"chapter": 22, "words": 417, "width": 1251}, {"chapter": 23, "words": 402, "width": 1206}, {"chapter": 24, "words": 470, "width": 1410}, {"chapter": 25, "words": 344, "width": 1032}, {"chapter": 26, "words": 440, "width": 1320}, {"chapter": 27, "words": 276, "width": 828}, {"chapter": 28, "words": 344, "width": 1032}, {"chapter": 29, "words": 380, "width": 1140}, {"chapter": 30, "words": 301, "width": 903}, {"chapter": 31, "words": 458, "width": 1374}]}, {"number": "21", "name": "Екклезіаста", "chapters": [{"chapter": 1, "words": 432, "width": 1296}, {"chapter": 2, "words": 526, "width": 1578}, {"chapter": 3, "words": 462, "width": 1386}, {"chapter": 4, "words": 305, "width": 915}, {"chapter": 5, "words": 289, "width": 867}, {"chapter": 6, "words": 232, "width": 696}, {"chapter": 7, "words": 518, "width": 1554}, {"chapter": 8, "words": 347, "width": 1041}, {"chapter": 9, "words": 470, "width": 1410}, {"chapter": 10, "words": 301, "width": 903}, {"chapter": 11, "words": 201, "width": 603}, {"chapter": 12, "words": 215, "width": 645}]}, {"number": "22", "name": "Пісні пісень", "chapters": [{"chapter": 1, "words": 277, "width": 831}, {"chapter": 2, "words": 264, "width": 792}, {"chapter": 3, "words": 177, "width": 531}, {"chapter": 4, "words": 317, "width": 951}, {"chapter": 5, "words": 331, "width": 993}, {"chapter": 6, "words": 169, "width": 507}, {"chapter": 7, "words": 363, "width": 1089}, {"chapter": 8, "words": 148, "width": 444}]}, {"number": "23", "name": "Ісаї", "chapters": [{"chapter": 1, "words": 451, "width": 1353}, {"chapter": 2, "words": 270, "width": 810}, {"chapter": 3, "words": 277, "width": 831}, {"chapter": 4, "words": 143, "width": 429}, {"chapter": 5, "words": 374, "width": 1122}, {"chapter": 6, "words": 190, "width": 570}, {"chapter": 7, "words": 319, "width": 957}, {"chapter": 8, "words": 399, "width": 1197}, {"chapter": 9, "words": 327, "width": 981}, {"chapter": 10, "words": 557, "width": 1671}, {"chapter": 11, "words": 210, "width": 630}, {"chapter": 12, "words": 50, "width": 150}, {"chapter": 13, "words": 382, "width": 1146}, {"chapter": 14, "words": 470, "width": 1410}, {"chapter": 15, "words": 131, "width": 393}, {"chapter": 16, "words": 185, "width": 555}, {"chapter": 17, "words": 193, "width": 579}, {"chapter": 18, "words": 94, "width": 282}, {"chapter": 19, "words": 427, "width": 1281}, {"chapter": 20, "words": 65, "width": 195}, {"chapter": 21, "words": 266, "width": 798}, {"chapter": 22, "words": 394, "width": 1182}, {"chapter": 23, "words": 212, "width": 636}, {"chapter": 24, "words": 225, "width": 675}, {"chapter": 25, "words": 188, "width": 564}, {"chapter": 26, "words": 296, "width": 888}, {"chapter": 27, "words": 191, "width": 573}, {"chapter": 28, "words": 381, "width": 1143}, {"chapter": 29, "words": 343, "width": 1029}, {"chapter": 30, "words": 345, "width": 1035}, {"chapter": 31, "words": 94, "width": 282}, {"chapter": 32, "words": 183, "width": 549}, {"chapter": 33, "words": 256, "width": 768}, {"chapter": 34, "words": 211, "width": 633}, {"chapter": 35, "words": 110, "width": 330}, {"chapter": 36, "words": 336, "width": 1008}, {"chapter": 37, "words": 571, "width": 1713}, {"chapter": 38, "words": 245, "width": 735}, {"chapter": 39, "words": 107, "width": 321}, {"chapter": 40, "words": 384, "width": 1152}, {"chapter": 41, "words": 310, "width": 930}, {"chapter": 42, "words": 459, "width": 1377}, {"chapter": 43, "words": 465, "width": 1395}, {"chapter": 44, "words": 450, "width": 1350}, {"chapter": 45, "words": 381, "width": 1143}, {"chapter": 46, "words": 203, "width": 609}, {"chapter": 47, "words": 171, "width": 513}, {"chapter": 48, "words": 378, "width": 1134}, {"chapter": 49, "words": 281, "width": 843}, {"chapter": 50, "words": 208, "width": 624}, {"chapter": 51, "words": 247, "width": 741}, {"chapter": 52, "words": 178, "width": 534}, {"chapter": 53, "words": 167, "width": 501}, {"chapter": 54, "words": 193, "width": 579}, {"chapter": 55, "words": 226, "width": 678}, {"chapter": 56, "words": 135, "width": 405}, {"chapter": 57, "words": 241, "width": 723}, {"chapter": 58, "words": 209, "width": 627}, {"chapter": 59, "words": 371, "width": 1113}, {"chapter": 60, "words": 303, "width": 909}, {"chapter": 61, "words": 203, "width": 609}, {"chapter": 62, "words": 362, "width": 1086}, {"chapter": 63, "words": 257, "width": 771}, {"chapter": 64, "words": 227, "width": 681}, {"chapter": 65, "words": 276, "width": 828}, {"chapter": 66, "words": 287, "width": 861}]}, {"number": "24", "name": "Єремії", "chapters": [{"chapter": 1, "words": 420, "width": 1260}, {"chapter": 2, "words": 538, "width": 1614}, {"chapter": 3, "words": 412, "width": 1236}, {"chapter": 4, "words": 386, "width": 1158}, {"chapter": 5, "words": 487, "width": 1461}, {"chapter": 6, "words": 405, "width": 1215}, {"chapter": 7, "words": 472, "width": 1416}, {"chapter": 8, "words": 484, "width": 1452}, {"chapter": 9, "words": 543, "width": 1629}, {"chapter": 10, "words": 404, "width": 1212}, {"chapter": 11, "words": 322, "width": 966}, {"chapter": 12, "words": 296, "width": 888}, {"chapter": 13, "words": 436, "width": 1308}, {"chapter": 14, "words": 277, "width": 831}, {"chapter": 15, "words": 383, "width": 1149}, {"chapter": 16, "words": 262, "width": 786}, {"chapter": 17, "words": 360, "width": 1080}, {"chapter": 18, "words": 253, "width": 759}, {"chapter": 19, "words": 258, "width": 774}, {"chapter": 20, "words": 228, "width": 684}, {"chapter": 21, "words": 221, "width": 663}, {"chapter": 22, "words": 481, "width": 1443}, {"chapter": 23, "words": 482, "width": 1446}, {"chapter": 24, "words": 191, "width": 573}, {"chapter": 25, "words": 591, "width": 1773}, {"chapter": 26, "words": 294, "width": 882}, {"chapter": 27, "words": 300, "width": 900}, {"chapter": 28, "words": 250, "width": 750}, {"chapter": 29, "words": 359, "width": 1077}, {"chapter": 30, "words": 298, "width": 894}, {"chapter": 31, "words": 519, "width": 1557}, {"chapter": 32, "words": 421, "width": 1263}, {"chapter": 33, "words": 478, "width": 1434}, {"chapter": 34, "words": 321, "width": 963}, {"chapter": 35, "words": 247, "width": 741}, {"chapter": 36, "words": 437, "width": 1311}, {"chapter": 37, "words": 280, "width": 840}, {"chapter": 38, "words": 356, "width": 1068}, {"chapter": 39, "words": 303, "width": 909}, {"chapter": 40, "words": 275, "width": 825}, {"chapter": 41, "words": 244, "width": 732}, {"chapter": 42, "words": 217, "width": 651}, {"chapter": 43, "words": 137, "width": 411}, {"chapter": 44, "words": 403, "width": 1209}, {"chapter": 45, "words": 94, "width": 282}, {"chapter": 46, "words": 445, "width": 1335}, {"chapter": 47, "words": 105, "width": 315}, {"chapter": 48, "words": 611, "width": 1833}, {"chapter": 49, "words": 505, "width": 1515}, {"chapter": 50, "words": 640, "width": 1920}, {"chapter": 51, "words": 676, "width": 2028}, {"chapter": 52, "words": 406, "width": 1218}]}, {"number": "25", "name": "Плач Єремії", "chapters": [{"chapter": 1, "words": 454, "width": 1362}, {"chapter": 2, "words": 492, "width": 1476}, {"chapter": 3, "words": 739, "width": 2217}, {"chapter": 4, "words": 442, "width": 1326}, {"chapter": 5, "words": 406, "width": 1218}]}, {"number": "26", "name": "Єзекиїля", "chapters": [{"chapter": 1, "words": 460, "width": 1380}, {"chapter": 2, "words": 297, "width": 891}, {"chapter": 3, "words": 443, "width": 1329}, {"chapter": 4, "words": 404, "width": 1212}, {"chapter": 5, "words": 353, "width": 1059}, {"chapter": 6, "words": 332, "width": 996}, {"chapter": 7, "words": 358, "width": 1074}, {"chapter": 8, "words": 294, "width": 882}, {"chapter": 9, "words": 235, "width": 705}, {"chapter": 10, "words": 277, "width": 831}, {"chapter": 11, "words": 307, "width": 921}, {"chapter": 12, "words": 409, "width": 1227}, {"chapter": 13, "words": 366, "width": 1098}, {"chapter": 14, "words": 405, "width": 1215}, {"chapter": 15, "words": 147, "width": 441}, {"chapter": 16, "words": 640, "width": 1920}, {"chapter": 17, "words": 450, "width": 1350}, {"chapter": 18, "words": 401, "width": 1203}, {"chapter": 19, "words": 246, "width": 738}, {"chapter": 20, "words": 640, "width": 1920}, {"chapter": 21, "words": 354, "width": 1062}, {"chapter": 22, "words": 475, "width": 1425}, {"chapter": 23, "words": 519, "width": 1557}, {"chapter": 24, "words": 463, "width": 1389}, {"chapter": 25, "words": 341, "width": 1023}, {"chapter": 26, "words": 348, "width": 1044}, {"chapter": 27, "words": 230, "width": 690}, {"chapter": 28, "words": 433, "width": 1299}, {"chapter": 29, "words": 468, "width": 1404}, {"chapter": 30, "words": 281, "width": 843}, {"chapter": 31, "words": 370, "width": 1110}, {"chapter": 32, "words": 543, "width": 1629}, {"chapter": 33, "words": 475, "width": 1425}, {"chapter": 34, "words": 299, "width": 897}, {"chapter": 35, "words": 288, "width": 864}, {"chapter": 36, "words": 210, "width": 630}, {"chapter": 37, "words": 292, "width": 876}, {"chapter": 38, "words": 280, "width": 840}, {"chapter": 39, "words": 278, "width": 834}, {"chapter": 40, "words": 307, "width": 921}, {"chapter": 41, "words": 327, "width": 981}, {"chapter": 42, "words": 283, "width": 849}, {"chapter": 43, "words": 380, "width": 1140}, {"chapter": 44, "words": 304, "width": 912}, {"chapter": 45, "words": 405, "width": 1215}, {"chapter": 46, "words": 383, "width": 1149}, {"chapter": 47, "words": 324, "width": 972}, {"chapter": 48, "words": 351, "width": 1053}]}, {"number": "27", "name": "Даниїла", "chapters": [{"chapter": 1, "words": 247, "width": 741}, {"chapter": 2, "words": 502, "width": 1506}, {"chapter": 3, "words": 360, "width": 1080}, {"chapter": 4, "words": 499, "width": 1497}, {"chapter": 5, "words": 318, "width": 954}, {"chapter": 6, "words": 332, "width": 996}, {"chapter": 7, "words": 400, "width": 1200}, {"chapter": 8, "words": 305, "width": 915}, {"chapter": 9, "words": 397, "width": 1191}, {"chapter": 10, "words": 222, "width": 666}, {"chapter": 11, "words": 458, "width": 1374}, {"chapter": 12, "words": 219, "width": 657}]}, {"number": "28", "name": "Осії", "chapters": [{"chapter": 1, "words": 256, "width": 768}, {"chapter": 2, "words": 452, "width": 1356}, {"chapter": 3, "words": 94, "width": 282}, {"chapter": 4, "words": 320, "width": 960}, {"chapter": 5, "words": 311, "width": 933}, {"chapter": 6, "words": 152, "width": 456}, {"chapter": 7, "words": 431, "width": 1293}, {"chapter": 8, "words": 150, "width": 450}, {"chapter": 9, "words": 305, "width": 915}, {"chapter": 10, "words": 310, "width": 930}, {"chapter": 11, "words": 214, "width": 642}, {"chapter": 12, "words": 229, "width": 687}, {"chapter": 13, "words": 307, "width": 921}, {"chapter": 14, "words": 181, "width": 543}]}, {"number": "29", "name": "Іоїля", "chapters": [{"chapter": 1, "words": 296, "width": 888}, {"chapter": 2, "words": 540, "width": 1620}, {"chapter": 3, "words": 210, "width": 630}, {"chapter": 4, "words": 229, "width": 687}]}, {"number": "30", "name": "Амоса", "chapters": [{"chapter": 1, "words": 265, "width": 795}, {"chapter": 2, "words": 297, "width": 891}, {"chapter": 3, "words": 256, "width": 768}, {"chapter": 4, "words": 285, "width": 855}, {"chapter": 5, "words": 341, "width": 1023}, {"chapter": 6, "words": 185, "width": 555}, {"chapter": 7, "words": 323, "width": 969}, {"chapter": 8, "words": 216, "width": 648}, {"chapter": 9, "words": 255, "width": 765}]}, {"number": "31", "name": "Авдія", "chapters": [{"chapter": 1, "words": 219, "width": 657}]}, {"number": "32", "name": "Іони", "chapters": [{"chapter": 1, "words": 189, "width": 567}, {"chapter": 2, "words": 147, "width": 441}, {"chapter": 3, "words": 105, "width": 315}, {"chapter": 4, "words": 168, "width": 504}]}, {"number": "33", "name": "Михея", "chapters": [{"chapter": 1, "words": 285, "width": 855}, {"chapter": 2, "words": 177, "width": 531}, {"chapter": 3, "words": 140, "width": 420}, {"chapter": 4, "words": 363, "width": 1089}, {"chapter": 5, "words": 236, "width": 708}, {"chapter": 6, "words": 216, "width": 648}, {"chapter": 7, "words": 327, "width": 981}]}, {"number": "34", "name": "Пророка Наума", "chapters": [{"chapter": 1, "words": 226, "width": 678}, {"chapter": 2, "words": 149, "width": 447}, {"chapter": 3, "words": 196, "width": 588}]}, {"number": "35", "name": "Аввакума", "chapters": [{"chapter": 1, "words": 184, "width": 552}, {"chapter": 2, "words": 345, "width": 1035}, {"chapter": 3, "words": 325, "width": 975}]}, {"number": "36", "name": "Софонії", "chapters": [{"chapter": 1, "words": 400, "width": 1200}, {"chapter": 2, "words": 274, "width": 822}, {"chapter": 3, "words": 383, "width": 1149}]}, {"number": "37", "name": "Аггея", "chapters": [{"chapter": 1, "words": 174, "width": 522}, {"chapter": 2, "words": 400, "width": 1200}]}, {"number": "38", "name": "Захарії", "chapters": [{"chapter": 1, "words": 406, "width": 1218}, {"chapter": 2, "words": 195, "width": 585}, {"chapter": 3, "words": 135, "width": 405}, {"chapter": 4, "words": 147, "width": 441}, {"chapter": 5, "words": 111, "width": 333}, {"chapter": 6, "words": 99, "width": 297}, {"chapter": 7, "words": 153, "width": 459}, {"chapter": 8, "words": 262, "width": 786}, {"chapter": 9, "words": 297, "width": 891}, {"chapter": 10, "words": 265, "width": 795}, {"chapter": 11, "words": 380, "width": 1140}, {"chapter": 12, "words": 232, "width": 696}, {"chapter": 13, "words": 155, "width": 465}, {"chapter": 14, "words": 326, "width": 978}]}, {"number": "39", "name": "Малахії", "chapters": [{"chapter": 1, "words": 309, "width": 927}, {"chapter": 2, "words": 366, "width": 1098}, {"chapter": 3, "words": 295, "width": 885}, {"chapter": 4, "words": 102, "width": 306}]}, {"number": "40", "name": "Матфея", "chapters": [{"chapter": 1, "words": 341, "width": 1023}, {"chapter": 2, "words": 388, "width": 1164}, {"chapter": 3, "words": 251, "width": 753}, {"chapter": 4, "words": 300, "width": 900}, {"chapter": 5, "words": 648, "width": 1944}, {"chapter": 6, "words": 617, "width": 1851}, {"chapter": 7, "words": 411, "width": 1233}, {"chapter": 8, "words": 396, "width": 1188}, {"chapter": 9, "words": 557, "width": 1671}, {"chapter": 10, "words": 422, "width": 1266}, {"chapter": 11, "words": 444, "width": 1332}, {"chapter": 12, "words": 475, "width": 1425}, {"chapter": 13, "words": 601, "width": 1803}, {"chapter": 14, "words": 447, "width": 1341}, {"chapter": 15, "words": 459, "width": 1377}, {"chapter": 16, "words": 393, "width": 1179}, {"chapter": 17, "words": 344, "width": 1032}, {"chapter": 18, "words": 439, "width": 1317}, {"chapter": 19, "words": 484, "width": 1452}, {"chapter": 20, "words": 549, "width": 1647}, {"chapter": 21, "words": 613, "width": 1839}, {"chapter": 22, "words": 443, "width": 1329}, {"chapter": 23, "words": 592, "width": 1776}, {"chapter": 24, "words": 632, "width": 1896}, {"chapter": 25, "words": 588, "width": 1764}, {"chapter": 26, "words": 705, "width": 2115}, {"chapter": 27, "words": 619, "width": 1857}, {"chapter": 28, "words": 352, "width": 1056}]}, {"number": "41", "name": "Марка", "chapters": [{"chapter": 1, "words": 746, "width": 2238}, {"chapter": 2, "words": 481, "width": 1443}, {"chapter": 3, "words": 509, "width": 1527}, {"chapter": 4, "words": 474, "width": 1422}, {"chapter": 5, "words": 516, "width": 1548}, {"chapter": 6, "words": 653, "width": 1959}, {"chapter": 7, "words": 457, "width": 1371}, {"chapter": 8, "words": 495, "width": 1485}, {"chapter": 9, "words": 682, "width": 2046}, {"chapter": 10, "words": 688, "width": 2064}, {"chapter": 11, "words": 437, "width": 1311}, {"chapter": 12, "words": 531, "width": 1593}, {"chapter": 13, "words": 419, "width": 1257}, {"chapter": 14, "words": 704, "width": 2112}, {"chapter": 15, "words": 700, "width": 2100}, {"chapter": 16, "words": 330, "width": 990}]}, {"number": "42", "name": "Луки", "chapters": [{"chapter": 1, "words": 792, "width": 2376}, {"chapter": 2, "words": 729, "width": 2187}, {"chapter": 3, "words": 481, "width": 1443}, {"chapter": 4, "words": 431, "width": 1293}, {"chapter": 5, "words": 593, "width": 1779}, {"chapter": 6, "words": 491, "width": 1473}, {"chapter": 7, "words": 656, "width": 1968}, {"chapter": 8, "words": 604, "width": 1812}, {"chapter": 9, "words": 834, "width": 2502}, {"chapter": 10, "words": 538, "width": 1614}, {"chapter": 11, "words": 742, "width": 2226}, {"chapter": 12, "words": 604, "width": 1812}, {"chapter": 13, "words": 421, "width": 1263}, {"chapter": 14, "words": 524, "width": 1572}, {"chapter": 15, "words": 478, "width": 1434}, {"chapter": 16, "words": 542, "width": 1626}, {"chapter": 17, "words": 426, "width": 1278}, {"chapter": 18, "words": 619, "width": 1857}, {"chapter": 19, "words": 742, "width": 2226}, {"chapter": 20, "words": 633, "width": 1899}, {"chapter": 21, "words": 432, "width": 1296}, {"chapter": 22, "words": 894, "width": 2682}, {"chapter": 23, "words": 695, "width": 2085}, {"chapter": 24, "words": 669, "width": 2007}]}, {"number": "43", "name": "Іоана", "chapters": [{"chapter": 1, "words": 514, "width": 1542}, {"chapter": 2, "words": 308, "width": 924}, {"chapter": 3, "words": 489, "width": 1467}, {"chapter": 4, "words": 542, "width": 1626}, {"chapter": 5, "words": 629, "width": 1887}, {"chapter": 6, "words": 711, "width": 2133}, {"chapter": 7, "words": 622, "width": 1866}, {"chapter": 8, "words": 712, "width": 2136}, {"chapter": 9, "words": 459, "width": 1377}, {"chapter": 10, "words": 586, "width": 1758}, {"chapter": 11, "words": 629, "width": 1887}, {"chapter": 12, "words": 603, "width": 1809}, {"chapter": 13, "words": 355, "width": 1065}, {"chapter": 14, "words": 381, "width": 1143}, {"chapter": 15, "words": 340, "width": 1020}, {"chapter": 16, "words": 462, "width": 1386}, {"chapter": 17, "words": 262, "width": 786}, {"chapter": 18, "words": 587, "width": 1761}, {"chapter": 19, "words": 753, "width": 2259}, {"chapter": 20, "words": 480, "width": 1440}, {"chapter": 21, "words": 404, "width": 1212}]}, {"number": "44", "name": "Дії", "chapters": [{"chapter": 1, "words": 507, "width": 1521}, {"chapter": 2, "words": 964, "width": 2892}, {"chapter": 3, "words": 497, "width": 1491}, {"chapter": 4, "words": 726, "width": 2178}, {"chapter": 5, "words": 845, "width": 2535}, {"chapter": 6, "words": 371, "width": 1113}, {"chapter": 7, "words": 1155, "width": 3465}, {"chapter": 8, "words": 651, "width": 1953}, {"chapter": 9, "words": 673, "width": 2019}, {"chapter": 10, "words": 684, "width": 2052}, {"chapter": 11, "words": 519, "width": 1557}, {"chapter": 12, "words": 306, "width": 918}, {"chapter": 13, "words": 779, "width": 2337}, {"chapter": 14, "words": 451, "width": 1353}, {"chapter": 15, "words": 723, "width": 2169}, {"chapter": 16, "words": 710, "width": 2130}, {"chapter": 17, "words": 477, "width": 1431}, {"chapter": 18, "words": 499, "width": 1497}, {"chapter": 19, "words": 702, "width": 2106}, {"chapter": 20, "words": 524, "width": 1572}, {"chapter": 21, "words": 688, "width": 2064}, {"chapter": 22, "words": 623, "width": 1869}, {"chapter": 23, "words": 686, "width": 2058}, {"chapter": 24, "words": 417, "width": 1251}, {"chapter": 25, "words": 397, "width": 1191}, {"chapter": 26, "words": 516, "width": 1548}, {"chapter": 27, "words": 503, "width": 1509}, {"chapter": 28, "words": 422, "width": 1266}]}, {"number": "45", "name": "Якова", "chapters": [{"chapter": 1, "words": 334, "width": 1002}, {"chapter": 2, "words": 306, "width": 918}, {"chapter": 3, "words": 245, "width": 735}, {"chapter": 4, "words": 219, "width": 657}, {"chapter": 5, "words": 238, "width": 714}]}, {"number": "46", "name": "1-е Петра", "chapters": [{"chapter": 1, "words": 405, "width": 1215}, {"chapter": 2, "words": 363, "width": 1089}, {"chapter": 3, "words": 251, "width": 753}, {"chapter": 4, "words": 265, "width": 795}, {"chapter": 5, "words": 309, "width": 927}]}, {"number": "47", "name": "2-е Петра", "chapters": [{"chapter": 1, "words": 323, "width": 969}, {"chapter": 2, "words": 338, "width": 1014}, {"chapter": 3, "words": 249, "width": 747}]}, {"number": "48", "name": "1-е Іоана", "chapters": [{"chapter": 1, "words": 232, "width": 696}, {"chapter": 2, "words": 406, "width": 1218}, {"chapter": 3, "words": 329, "width": 987}, {"chapter": 4, "words": 342, "width": 1026}, {"chapter": 5, "words": 347, "width": 1041}]}, {"number": "49", "name": "2-е Іоана", "chapters": [{"chapter": 1, "words": 248, "width": 744}]}, {"number": "50", "name": "3-є Іоана", "chapters": [{"chapter": 1, "words": 219, "width": 657}]}, {"number": "51", "name": "Іуди", "chapters": [{"chapter": 1, "words": 454, "width": 1362}]}, {"number": "52", "name": "Римлян", "chapters": [{"chapter": 1, "words": 547, "width": 1641}, {"chapter": 2, "words": 451, "width": 1353}, {"chapter": 3, "words": 430, "width": 1290}, {"chapter": 4, "words": 407, "width": 1221}, {"chapter": 5, "words": 431, "width": 1293}, {"chapter": 6, "words": 372, "width": 1116}, {"chapter": 7, "words": 467, "width": 1401}, {"chapter": 8, "words": 663, "width": 1989}, {"chapter": 9, "words": 532, "width": 1596}, {"chapter": 10, "words": 346, "width": 1038}, {"chapter": 11, "words": 596, "width": 1788}, {"chapter": 12, "words": 307, "width": 921}, {"chapter": 13, "words": 275, "width": 825}, {"chapter": 14, "words": 445, "width": 1335}, {"chapter": 15, "words": 550, "width": 1650}, {"chapter": 16, "words": 385, "width": 1155}]}, {"number": "53", "name": "1-е Коринф’ян", "chapters": [{"chapter": 1, "words": 501, "width": 1503}, {"chapter": 2, "words": 291, "width": 873}, {"chapter": 3, "words": 347, "width": 1041}, {"chapter": 4, "words": 347, "width": 1041}, {"chapter": 5, "words": 232, "width": 696}, {"chapter": 6, "words": 343, "width": 1029}, {"chapter": 7, "words": 690, "width": 2070}, {"chapter": 8, "words": 226, "width": 678}, {"chapter": 9, "words": 447, "width": 1341}, {"chapter": 10, "words": 483, "width": 1449}, {"chapter": 11, "words": 539, "width": 1617}, {"chapter": 12, "words": 476, "width": 1428}, {"chapter": 13, "words": 199, "width": 597}, {"chapter": 14, "words": 614, "width": 1842}, {"chapter": 15, "words": 853, "width": 2559}, {"chapter": 16, "words": 328, "width": 984}]}, {"number": "54", "name": "2-е Коринф’ян", "chapters": [{"chapter": 1, "words": 489, "width": 1467}, {"chapter": 2, "words": 287, "width": 861}, {"chapter": 3, "words": 298, "width": 894}, {"chapter": 4, "words": 324, "width": 972}, {"chapter": 5, "words": 343, "width": 1029}, {"chapter": 6, "words": 266, "width": 798}, {"chapter": 7, "words": 332, "width": 996}, {"chapter": 8, "words": 414, "width": 1242}, {"chapter": 9, "words": 287, "width": 861}, {"chapter": 10, "words": 312, "width": 936}, {"chapter": 11, "words": 501, "width": 1503}, {"chapter": 12, "words": 415, "width": 1245}, {"chapter": 13, "words": 241, "width": 723}]}, {"number": "55", "name": "Галатів", "chapters": [{"chapter": 1, "words": 355, "width": 1065}, {"chapter": 2, "words": 382, "width": 1146}, {"chapter": 3, "words": 464, "width": 1392}, {"chapter": 4, "words": 450, "width": 1350}, {"chapter": 5, "words": 317, "width": 951}, {"chapter": 6, "words": 272, "width": 816}]}, {"number": "56", "name": "Ефесян", "chapters": [{"chapter": 1, "words": 405, "width": 1215}, {"chapter": 2, "words": 362, "width": 1086}, {"chapter": 3, "words": 336, "width": 1008}, {"chapter": 4, "words": 486, "width": 1458}, {"chapter": 5, "words": 472, "width": 1416}, {"chapter": 6, "words": 402, "width": 1206}]}, {"number": "57", "name": "Филип’ян", "chapters": [{"chapter": 1, "words": 499, "width": 1497}, {"chapter": 2, "words": 435, "width": 1305}, {"chapter": 3, "words": 349, "width": 1047}, {"chapter": 4, "words": 358, "width": 1074}]}, {"number": "58", "name": "Колосян", "chapters": [{"chapter": 1, "words": 553, "width": 1659}, {"chapter": 2, "words": 402, "width": 1206}, {"chapter": 3, "words": 378, "width": 1134}, {"chapter": 4, "words": 286, "width": 858}]}, {"number": "59", "name": "1-е Солунян", "chapters": [{"chapter": 1, "words": 219, "width": 657}, {"chapter": 2, "words": 393, "width": 1179}, {"chapter": 3, "words": 255, "width": 765}, {"chapter": 4, "words": 306, "width": 918}, {"chapter": 5, "words": 322, "width": 966}]}, {"number": "60", "name": "2-е Солунян", "chapters": [{"chapter": 1, "words": 237, "width": 711}, {"chapter": 2, "words": 318, "width": 954}, {"chapter": 3, "words": 279, "width": 837}]}, {"number": "61", "name": "1-е Тимофія", "chapters": [{"chapter": 1, "words": 310, "width": 930}, {"chapter": 2, "words": 190, "width": 570}, {"chapter": 3, "words": 208, "width": 624}, {"chapter": 4, "words": 225, "width": 675}, {"chapter": 5, "words": 336, "width": 1008}, {"chapter": 6, "words": 364, "width": 1092}]}, {"number": "62", "name": "2-е Тимофія", "chapters": [{"chapter": 1, "words": 318, "width": 954}, {"chapter": 2, "words": 360, "width": 1080}, {"chapter": 3, "words": 237, "width": 711}, {"chapter": 4, "words": 357, "width": 1071}]}, {"number": "63", "name": "Тита", "chapters": [{"chapter": 1, "words": 252, "width": 756}, {"chapter": 2, "words": 190, "width": 570}, {"chapter": 3, "words": 223, "width": 669}]}, {"number": "64", "name": "Филимона", "chapters": [{"chapter": 1, "words": 340, "width": 1020}]}, {"number": "65", "name": "Євреїв", "chapters": [{"chapter": 1, "words": 254, "width": 762}, {"chapter": 2, "words": 324, "width": 972}, {"chapter": 3, "words": 292, "width": 876}, {"chapter": 4, "words": 292, "width": 876}, {"chapter": 5, "words": 235, "width": 705}, {"chapter": 6, "words": 303, "width": 909}, {"chapter": 7, "words": 459, "width": 1377}, {"chapter": 8, "words": 281, "width": 843}, {"chapter": 9, "words": 512, "width": 1536}, {"chapter": 10, "words": 561, "width": 1683}, {"chapter": 11, "words": 639, "width": 1917}, {"chapter": 12, "words": 479, "width": 1437}, {"chapter": 13, "words": 377, "width": 1131}]}, {"number": "66", "name": "Одкровення", "chapters": [{"chapter": 1, "words": 501, "width": 1503}, {"chapter": 2, "words": 633, "width": 1899}, {"chapter": 3, "words": 526, "width": 1578}, {"chapter": 4, "words": 290, "width": 870}, {"chapter": 5, "words": 359, "width": 1077}, {"chapter": 6, "words": 423, "width": 1269}, {"chapter": 7, "words": 406, "width": 1218}, {"chapter": 8, "words": 311, "width": 933}, {"chapter": 9, "words": 499, "width": 1497}, {"chapter": 10, "words": 294, "width": 882}, {"chapter": 11, "words": 501, "width": 1503}, {"chapter": 12, "words": 430, "width": 1290}, {"chapter": 13, "words": 449, "width": 1347}, {"chapter": 14, "words": 547, "width": 1641}, {"chapter": 15, "words": 222, "width": 666}, {"chapter": 16, "words": 485, "width": 1455}, {"chapter": 17, "words": 444, "width": 1332}, {"chapter": 18, "words": 615, "width": 1845}, {"chapter": 19, "words": 536, "width": 1608}, {"chapter": 20, "words": 400, "width": 1200}, {"chapter": 21, "words": 621, "width": 1863}, {"chapter": 22, "words": 456, "width": 1368}]}];
+
+// Поточний набір даних для відображення. За замовчуванням використовуємо вбудований booksData,
+// але він може бути перезаписаний після завантаження external JSON (books.json).
+let currentBooksData = booksData;
+// Масив для стану відображення книг
+let selectedBooks = [];
+
+/**
+ * Завантажує книги з JSON-файлу books.json і оновлює currentBooksData.
+ * Якщо файлу немає або сталася помилка, залишаємо поточні дані.
+ */
+async function loadDataAndRender() {
+  try {
+    // спробуємо завантажити файл books.json, розташований поруч із цією HTML-сторінкою.
+    const response = await fetch('books.json');
+    if (!response.ok) throw new Error('Response not ok');
+    const json = await response.json();
+    if (json && Array.isArray(json.books)) {
+      const converted = json.books.map(bk => {
+        return {
+          number: String(bk.order).padStart(2, '0'),
+          name: bk.title,
+          chapters: bk.chapters.map(ch => ({
+            chapter: ch.n,
+            words: ch.words,
+            width: ch.words * 3
+          }))
+        };
+      });
+      currentBooksData = converted;
+    }
+  } catch (err) {
+    console.warn('Не вдалося завантажити books.json, використовуємо вбудований набір даних.', err);
+  }
+  // Після завантаження даних перерендерюємо графіку
+  buildBookList();
+  renderCharts();
+}
+/** Створює чекбокси для всіх книг у бічній панелі */
+function buildBookList() {
+  const listContainer = document.getElementById('bookList');
+  listContainer.innerHTML = '';
+  selectedBooks = currentBooksData.map(() => true);
+  currentBooksData.forEach((book, index) => {
+    const lbl = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = true;
+    cb.dataset.bookIndex = index;
+    cb.addEventListener('change', (e) => {
+      const i = parseInt(e.target.dataset.bookIndex);
+      selectedBooks[i] = e.target.checked;
+      renderCharts();
+    });
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode(' ' + book.number + ' ' + book.name));
+    listContainer.appendChild(lbl);
+  });
+  // Buttons
+  const selectBtn = document.getElementById('selectAllBtn');
+  const deselectBtn = document.getElementById('deselectAllBtn');
+  if (selectBtn) {
+    selectBtn.addEventListener('click', () => {
+      selectedBooks = currentBooksData.map(() => true);
+      listContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+      renderCharts();
+    });
+  }
+  if (deselectBtn) {
+    deselectBtn.addEventListener('click', () => {
+      selectedBooks = currentBooksData.map(() => false);
+      listContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+      renderCharts();
+    });
+  }
+}
+
+
+// Набір для фіксації ручних переносів розділів. Ключ вигляду "bookIndex-chapterIndex".
+const manualBreaks = new Set();
+
+/**
+ * Форматує список розділів одного рядка у текст для CSV.
+ * @param {Array} rowChapters Масив об'єктів {origBookIndex, origChapterIndex, chapterNumber}
+ * @returns {string} Відформатований рядок "Що читаємо"
+ */
+function formatChaptersForRow(rowChapters) {
+  // Групуємо розділи за книгою
+  const byBook = {};
+  rowChapters.forEach(ch => {
+    const key = ch.origBookIndex;
+    if (!byBook[key]) byBook[key] = [];
+    byBook[key].push(ch.chapterNumber);
+  });
+  const bookIndices = Object.keys(byBook);
+  if (bookIndices.length === 0) return '';
+  // Сортуємо розділи в кожній книзі
+  bookIndices.forEach(idx => {
+    byBook[idx].sort((a,b) => a - b);
+  });
+  // Якщо лише одна книга
+  if (bookIndices.length === 1) {
+    const bookIndex = parseInt(bookIndices[0]);
+    const bookName = currentBooksData[bookIndex].name;
+    const chapters = byBook[bookIndex];
+    // Групуємо послідовні розділи
+    const groups = [];
+    let start = chapters[0];
+    let prev = chapters[0];
+    for (let i = 1; i < chapters.length; i++) {
+      const current = chapters[i];
+      if (current === prev + 1) {
+        // продовжуємо послідовність
+        prev = current;
+      } else {
+        // закінчилася послідовність
+        groups.push({start, end: prev});
+        start = current;
+        prev = current;
+      }
+    }
+    // Додаємо останню групу
+    groups.push({start, end: prev});
+    // Формуємо частини
+    const parts = [];
+    groups.forEach(gr => {
+      const length = gr.end - gr.start + 1;
+      if (length === 1) {
+        parts.push(String(gr.start));
+      } else if (length === 2) {
+        parts.push(String(gr.start));
+        parts.push(String(gr.end));
+      } else {
+        parts.push(gr.start + '–' + gr.end);
+      }
+    });
+    // Для двох послідовних одиночних розділів, parts вже містить окремі елементи
+    const listStr = parts.join(', ');
+    return `📖 На цьому тижні читаємо ${bookName} ${listStr}`;
+  }
+  // Кілька книг: формуємо список з булетами
+  const lines = [];
+  bookIndices.sort((a,b) => parseInt(a) - parseInt(b)).forEach(idx => {
+    const bookIndex = parseInt(idx);
+    const bookName = currentBooksData[bookIndex].name;
+    const chapters = byBook[idx];
+    // Групуємо послідовні
+    const seqs = [];
+    let s = chapters[0];
+    let p = chapters[0];
+    for (let i = 1; i < chapters.length; i++) {
+      const c = chapters[i];
+      if (c === p + 1) {
+        p = c;
+      } else {
+        seqs.push({start: s, end: p});
+        s = c;
+        p = c;
+      }
+    }
+    seqs.push({start: s, end: p});
+    // Формуємо частини
+    const parts = [];
+    seqs.forEach(gr => {
+      const len = gr.end - gr.start + 1;
+      if (len === 1) {
+        parts.push(String(gr.start));
+      } else if (len === 2) {
+        parts.push(String(gr.start));
+        parts.push(String(gr.end));
+      } else {
+        parts.push(gr.start + '–' + gr.end);
+      }
+    });
+    const listStr = parts.join(', ');
+    lines.push(`- ${bookName} ${listStr}`);
+  });
+  return `📖 На цьому тижні читаємо:\n${lines.join('\n')}`;
+}
+
+/**
+ * Експортує поточне відображення (для режиму "Усі розділи") у CSV-файл.
+ */
+function exportCSV() {
+  // Експорт можливий у будь‑якому режимі. Перевіряємо наявність даних для експорту.
+  if (currentRows.length === 0) {
+    alert('Немає даних для експорту.');
+    return;
+  }
+  let csv = '№ тижня,Що читаємо\n';
+  for (let i = 0; i < currentRows.length; i++) {
+    const weekNum = i + 1;
+    const desc = formatChaptersForRow(currentRows[i]);
+    // Екрануємо потенційні символи
+    const escaped = desc.replace(/"/g, '""');
+    // Якщо є кома чи перевід рядка, беріть у лапки
+    const quoted = /[",\n]/.test(escaped) ? `"${escaped}"` : escaped;
+    csv += `${weekNum},${quoted}\n`;
+  }
+  // Створюємо Blob та посилання для завантаження
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'bible_weeks.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Копіює поточне відображення у буфер обміну у вигляді нумерованого списку.
+ * Формат: "Тижні:\n1. опис\n2. опис\n...".
+ */
+function exportClipboard() {
+  if (currentRows.length === 0) {
+    alert('Немає даних для експорту.');
+    return;
+  }
+  let result = 'Тижні:\n';
+  for (let i = 0; i < currentRows.length; i++) {
+    let desc = formatChaptersForRow(currentRows[i]);
+    // Прибираємо префікс "📖 На цьому тижні читаємо" та зайві двокрапки/пробіли
+    desc = desc.replace(/^📖 На цьому тижні читаємо:?\s*/u, '');
+    // Додаємо нумерацію
+    result += `${i + 1}. ${desc}\n`;
+  }
+  // Використовуємо API буфера обміну, якщо доступний
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(result).then(() => {
+      alert('Дані скопійовано у буфер обміну.');
+    }).catch(() => {
+      alert('Не вдалося скопіювати в буфер обміну.');
+    });
+  } else {
+    // Якщо API недоступний – використовуємо резервний метод через textarea
+    const textarea = document.createElement('textarea');
+    textarea.value = result;
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+      document.execCommand('copy');
+      alert('Дані скопійовано у буфер обміну.');
+    } catch (err) {
+      alert('Не вдалося скопіювати в буфер обміну.');
+    }
+    document.body.removeChild(textarea);
+  }
+}
+
+/**
+ * Обробка натискання на сегмент розділу. Змінює стан ручного переносу.
+ */
+function toggleManualBreak(e) {
+  const b = e.currentTarget.dataset.bookIndex;
+  const c = e.currentTarget.dataset.chapterIndex;
+  const key = b + '-' + c;
+  if (manualBreaks.has(key)) {
+    manualBreaks.delete(key);
+  } else {
+    manualBreaks.add(key);
+  }
+  renderCharts();
+}
+
+/**
+ * Рендерить усі книги та їхні розділи з урахуванням поточних налаштувань.
+ * Підтримує перенесення рядка: якщо задано chaptersPerLine (>0), то в кожному рядку
+ * буде не більше вказаної кількості розділів. Якщо задано maxRowWidth (>0), то
+ * розділи будуть розбиватись на сегменти, які переходять на наступний рядок при
+ * перевищенні ліміту ширини.
+ */
+function renderCharts() {
+  const scale = parseFloat(document.getElementById('scaleInput').value);
+  const rectHeight = parseInt(document.getElementById('rectHeightInput').value);
+  const titleFontSize = parseInt(document.getElementById('titleFontSizeInput').value);
+  const chapterFontSize = parseInt(document.getElementById('chapterFontSizeInput').value);
+  const rowSpacing = parseInt(document.getElementById('rowSpacingInput').value);
+  const gap = parseInt(document.getElementById('gapInput').value);
+  const lineGap = parseInt(document.getElementById('lineGapInput').value);
+  const borderRadius = parseInt(document.getElementById('borderRadiusInput').value);
+  const chaptersPerLine = parseInt(document.getElementById('chaptersPerLineInput').value);
+  const maxRowWidth = parseInt(document.getElementById('maxRowWidthInput').value);
+  const enableSplit = document.getElementById('enableSplitInput').checked;
+  const effectiveMaxRowWidth = enableSplit ? maxRowWidth : 0;
+  const rectColor = document.getElementById('rectColorInput').value;
+  const titleColor = document.getElementById('titleColorInput').value;
+  const chapterColor = document.getElementById('chapterColorInput').value;
+  const showChapter = document.getElementById('showChapterInput').checked;
+  const showWords = document.getElementById('showWordsInput').checked;
+  const alignChapterCenter = document.getElementById('alignChapterCenterInput').checked;
+  const allChaptersMode = document.getElementById('allChaptersModeInput').checked;
+  const firstChapterColor = document.getElementById('firstChapterColorInput').value;
+  const backgroundColor = document.getElementById('backgroundColorInput').value;
+  // Змінюємо фон сторінки залежно від обраного кольору фону
+  document.body.style.backgroundColor = backgroundColor;
+  const container = document.getElementById('charts');
+  container.innerHTML = '';
+  // Скидаємо список рядків перед новим рендером
+  currentRows = [];
+  // Масив для зберігання посилань на контейнери розділів (для малювання середньої лінії)
+  const chaptersContainers = [];
+  // Визначаємо набір книг для рендеру: або оригінальний, або зведений у "Біблію"
+  let booksToRender;
+  if (allChaptersMode) {
+    // Формуємо один об'єкт "Біблія", де всі розділи йдуть підряд. Беремо лише вибрані книги.
+    const aggregatedChapters = [];
+    currentBooksData.forEach((bk, bIdx) => {
+      // Додаємо розділи тільки для обраних книг
+      if (!selectedBooks[bIdx]) return;
+      bk.chapters.forEach((ch, cIdx) => {
+        // Копіюємо початковий об'єкт розділу й додаємо індекси для ідентифікації
+        const chCopy = Object.assign({}, ch, { origBookIndex: bIdx, origChapterIndex: cIdx });
+        aggregatedChapters.push(chCopy);
+      });
+    });
+    booksToRender = [{ number: '', name: 'Біблія', chapters: aggregatedChapters }];
+  } else {
+    // Створюємо масив книг для рендеру, додаючи оригінальний індекс для коректних посилань
+    booksToRender = currentBooksData
+      .map((bk, idx) => {
+        if (!selectedBooks[idx]) return null;
+        // повертаємо копію з оригінальним індексом
+        const copy = Object.assign({}, bk);
+        copy.origIndex = idx;
+        return copy;
+      })
+      .filter(Boolean);
+  }
+  // Для кожної книги (або всієї Біблії) формуємо окремий блок
+  booksToRender.forEach(book => {
+    // У разі агрегованого режиму беремо bookIndex тільки як 0, оскільки один об'єкт.
+    const bookIndex = booksToRender.indexOf(book);
+    const bookDiv = document.createElement('div');
+    bookDiv.className = 'book';
+    bookDiv.style.marginBottom = rowSpacing + 'px';
+    // Назва книги
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'book-name';
+    nameSpan.style.fontSize = titleFontSize + 'px';
+    nameSpan.style.color = titleColor;
+    // В агрегованому режимі прибираємо зайвий пробіл, якщо номер відсутній
+    nameSpan.textContent = (book.number ? book.number + ' ' : '') + book.name;
+    bookDiv.appendChild(nameSpan);
+    // Контейнер для розділів (рядків)
+    const chaptersContainer = document.createElement('div');
+    chaptersContainer.className = 'chapters-container';
+    chaptersContainer.style.rowGap = lineGap + 'px';
+    // Ініціалізація першого рядка
+    let currentRow = document.createElement('div');
+    currentRow.className = 'chapter-row';
+    currentRow.style.columnGap = gap + 'px';
+    // Ширина поточної строки (враховуємо лише ширину сегментів, відступи додаються через gap)
+    let rowWidth = 0;
+    // Скільки розділів вже в рядку (для chaptersPerLine)
+    let chapterCount = 0;
+    // Масив для збереження оригінальних розділів у поточному рядку (для CSV)
+    let rowChapterObjects = [];
+    book.chapters.forEach(ch => {
+      // Інтерфейси оригінального індексу книги та розділу
+      const chapterIndex = book.chapters.indexOf(ch);
+      // Для агрегованого режиму використовуємо збережені origBookIndex/origChapterIndex, а для звичайного – поточні індекси
+      // Визначаємо оригінальний індекс книги та розділу для функцій експорту і ручного переносу.
+      const origBookIndex = allChaptersMode ? ch.origBookIndex : book.origIndex;
+      const origChapterIndex = allChaptersMode ? ch.origChapterIndex : chapterIndex;
+      let totalWidth = ch.width * scale; // повна ширина для розділу
+      let isFirstSegment = true;
+      // Якщо задано chaptersPerLine і ліміт вже досягнуто, переносимо на новий рядок
+      if (chaptersPerLine > 0 && chapterCount >= chaptersPerLine) {
+        chaptersContainer.appendChild(currentRow);
+        // Зберігаємо список розділів цього рядка
+        if (rowChapterObjects.length > 0) currentRows.push(rowChapterObjects);
+        currentRow = document.createElement('div');
+        currentRow.className = 'chapter-row';
+        currentRow.style.columnGap = gap + 'px';
+        rowWidth = 0;
+        chapterCount = 0;
+        rowChapterObjects = [];
+      }
+      // Якщо для цього розділу встановлено ручний перенос, переносимо рядок перед ним, якщо рядок не порожній
+      const manualKey = origBookIndex + '-' + origChapterIndex;
+      if (manualBreaks.has(manualKey) && (currentRow.children.length > 0)) {
+        chaptersContainer.appendChild(currentRow);
+        // Зберігаємо список розділів цього рядка
+        if (rowChapterObjects.length > 0) currentRows.push(rowChapterObjects);
+        currentRow = document.createElement('div');
+        currentRow.className = 'chapter-row';
+        currentRow.style.columnGap = gap + 'px';
+        rowWidth = 0;
+        chapterCount = 0;
+        rowChapterObjects = [];
+      }
+      // Якщо необхідно обмежити ширину рядка (maxRowWidth > 0), то будемо розбивати розділ на сегменти
+      while (totalWidth > 0) {
+        // Якщо задано maxRowWidth і додавання всього розділу призведе до перевищення
+        // допустимої ширини, то додаємо стільки, скільки залишилось в поточному рядку;
+        // у протилежному випадку беремо всю ширину розділу
+        let availableWidth = effectiveMaxRowWidth > 0 ? effectiveMaxRowWidth - rowWidth : Infinity;
+        // Якщо в поточному рядку вже немає місця, створюємо новий рядок
+        if (effectiveMaxRowWidth > 0 && availableWidth <= 0) {
+          chaptersContainer.appendChild(currentRow);
+          currentRow = document.createElement('div');
+          currentRow.className = 'chapter-row';
+          currentRow.style.columnGap = gap + 'px';
+          rowWidth = 0;
+          availableWidth = maxRowWidth;
+          // При переході на новий рядок для поточного розділу позначаємо, що це вже не перший сегмент
+          // (номер глави більше не відображатиметься)
+        }
+        let segmentWidth;
+        if (effectiveMaxRowWidth > 0 && totalWidth > availableWidth) {
+          // Беремо частину, яка поміститься в рядку
+          segmentWidth = availableWidth;
+        } else {
+          segmentWidth = totalWidth;
+        }
+        // Створюємо сегмент
+        const segmentDiv = document.createElement('div');
+        segmentDiv.className = 'chapter-segment';
+        segmentDiv.style.width = segmentWidth + 'px';
+        segmentDiv.style.height = rectHeight + 'px';
+        // Визначаємо колір для сегмента: підсвічуємо перший розділ кожної книги
+        let thisRectColor = rectColor;
+        if (allChaptersMode) {
+          // У режимі "усі розділи" перший розділ будь-якої книги має origChapterIndex === 0
+          if (origChapterIndex === 0) {
+            thisRectColor = firstChapterColor;
+          }
+        } else {
+          if (chapterIndex === 0) {
+            thisRectColor = firstChapterColor;
+          }
+        }
+        segmentDiv.style.backgroundColor = thisRectColor;
+        segmentDiv.style.fontSize = chapterFontSize + 'px';
+        segmentDiv.style.color = chapterColor;
+        segmentDiv.style.borderRadius = borderRadius + 'px';
+        // Вирівнювання номера розділу
+        if (alignChapterCenter) {
+          segmentDiv.style.display = 'flex';
+          segmentDiv.style.justifyContent = 'center';
+        } else {
+          segmentDiv.style.display = 'flex';
+          segmentDiv.style.justifyContent = 'flex-start';
+          segmentDiv.style.paddingLeft = '8px';
+        }
+        // Якщо це перший сегмент даного розділу та потрібно показувати номер, то вставляємо текст
+        if (isFirstSegment && showChapter) {
+          segmentDiv.textContent = ch.chapter;
+        }
+        // Показуємо кількість слів у підказці лише для першого сегмента і коли режим увімкнений
+        if (isFirstSegment && showWords) {
+          // Створюємо підказку: уключаємо номер книги, назву та номер розділу, а також кількість слів
+          let tooltip;
+          if (allChaptersMode) {
+            const origBook = currentBooksData[origBookIndex];
+            // Наприклад: "01 Буття 1: 336"
+            tooltip = origBook.number + ' ' + origBook.name + ' ' + ch.chapter + ': ' + ch.words;
+          } else {
+            tooltip = book.number + ' ' + book.name + ' ' + ch.chapter + ': ' + ch.words;
+          }
+          segmentDiv.title = tooltip;
+        }
+        // Додаємо дані для ручного переносу та обробник
+        // Зберігаємо початкові індекси в атрибутах, щоб клацання переносило саме цей розділ
+        segmentDiv.dataset.bookIndex = origBookIndex;
+        segmentDiv.dataset.chapterIndex = origChapterIndex;
+        segmentDiv.addEventListener('click', toggleManualBreak);
+        currentRow.appendChild(segmentDiv);
+        // Оновлюємо лічильники
+        rowWidth += segmentWidth;
+        totalWidth -= segmentWidth;
+        isFirstSegment = false;
+        // Якщо сегмент завершився, а розділ ще не повністю розміщений, переносимо на новий рядок
+        if (effectiveMaxRowWidth > 0 && totalWidth > 0) {
+          chaptersContainer.appendChild(currentRow);
+          // Зберігаємо список розділів цього рядка
+          if (rowChapterObjects.length > 0) currentRows.push(rowChapterObjects);
+          currentRow = document.createElement('div');
+          currentRow.className = 'chapter-row';
+          currentRow.style.columnGap = gap + 'px';
+          rowWidth = 0;
+          rowChapterObjects = [];
+        }
+      }
+      // Після завершення розділу збільшуємо кількість розділів у поточному рядку
+      chapterCount++;
+      // Додаємо інформацію про цей розділ до списку для CSV (лише один раз на розділ)
+      rowChapterObjects.push({ origBookIndex, origChapterIndex, chapterNumber: ch.chapter });
+    });
+    // Додаємо останній рядок, якщо він містить елементи
+    if (currentRow.children.length > 0) {
+      chaptersContainer.appendChild(currentRow);
+      // Зберігаємо список розділів цього рядка
+      if (rowChapterObjects.length > 0) currentRows.push(rowChapterObjects);
+    }
+    // Додаємо контейнер розділів до блоку книги
+    bookDiv.appendChild(chaptersContainer);
+    container.appendChild(bookDiv);
+    // Зберігаємо посилання на контейнер розділів для подальшого малювання середньої лінії
+    chaptersContainers.push(chaptersContainer);
+  });
+
+  // Після побудови всіх рядків можемо розрахувати середню довжину рядка та намалювати пунктирну лінію
+  const showAvgLine = document.getElementById('showAvgLineInput')?.checked;
+  const avgLineColor = document.getElementById('avgLineColorInput')?.value || '#ff0000';
+  if (showAvgLine && currentRows.length > 0) {
+    // Обчислюємо суму слів у кожному рядку та середнє значення
+    let totalWords = 0;
+    currentRows.forEach(row => {
+      let rowWords = 0;
+      row.forEach(rc => {
+        const bIdx = rc.origBookIndex;
+        const cIdx = rc.origChapterIndex;
+        const book = currentBooksData[bIdx];
+        if (book && book.chapters[cIdx]) {
+          rowWords += book.chapters[cIdx].words;
+        }
+      });
+      totalWords += rowWords;
+    });
+    const avgWords = totalWords / currentRows.length;
+    // Коефіцієнт ширини: для кожного слова 3 пікселі, з урахуванням масштабу
+    const avgPixel = avgWords * 3 * scale;
+    // Додаємо вертикальну пунктирну лінію в кожен контейнер
+    chaptersContainers.forEach(cc => {
+      // встановлюємо позицію relative, щоб абсолютне позиціонування працювало
+      cc.style.position = 'relative';
+      const line = document.createElement('div');
+      line.style.position = 'absolute';
+      line.style.top = '0';
+      line.style.bottom = '0';
+      line.style.left = avgPixel + 'px';
+      line.style.borderLeft = '2px dashed ' + avgLineColor;
+      line.style.pointerEvents = 'none';
+      cc.appendChild(line);
+    });
+  }
+}
+// Слухаємо зміну усіх налаштувань та перерендерюємо графіку
+const controlIds = [
+  'scaleInput','rectHeightInput','titleFontSizeInput','chapterFontSizeInput',
+  'rowSpacingInput','gapInput','lineGapInput','borderRadiusInput',
+  'chaptersPerLineInput','maxRowWidthInput',
+  'rectColorInput','titleColorInput','chapterColorInput',
+  'showChapterInput','showWordsInput',
+  // Додаємо нові опції: розбивання довгих розділів та вирівнювання номерів
+  'enableSplitInput','alignChapterCenterInput'
+  ,'allChaptersModeInput','firstChapterColorInput','backgroundColorInput'
+  ,'showAvgLineInput','avgLineColorInput'
+];
+controlIds.forEach(id => {
+  document.getElementById(id).addEventListener('input', renderCharts);
+});
+// Обробник натискання кнопки для експорту CSV
+document.getElementById('exportCsvBtn').addEventListener('click', exportCSV);
+// Обробник натискання кнопки для копіювання у буфер обміну
+document.getElementById('copyClipboardBtn').addEventListener('click', exportClipboard);
+// Після завантаження сторінки намагаємося завантажити books.json і відрендерити дані.
+window.addEventListener('load', loadDataAndRender);
+</script>
+</body>
+</html>
